@@ -1,0 +1,84 @@
+name: Auto Release GeoIP Databases
+
+on:
+  workflow_dispatch:
+  schedule:
+    - cron: '0 2 * * *'
+
+jobs:
+  build:
+    name: Check and Release
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout Repo
+        uses: actions/checkout@v2
+
+      - name: Get Date as Tag
+        id: date
+        run: |
+          echo ::set-output name=tag::$(date -u +%Y%m%d)
+
+      - name: Download GeoIP Databases
+        env:
+          LICENSE_KEY: ${{ secrets.LICENSE_KEY }}
+        run: |
+          curl -sSL -o GeoLite2-ASN.tar.gz "https://download.maxmind.com/app/geoip_download?edition_id=GeoLite2-ASN&license_key=${LICENSE_KEY}&suffix=tar.gz"
+          tar xvzf GeoLite2-ASN.tar.gz -C .
+          mv ./GeoLite2-ASN_*/GeoLite2-ASN.mmdb ASN.mmdb
+
+          curl -sSL -o GeoLite2-City.tar.gz "https://download.maxmind.com/app/geoip_download?edition_id=GeoLite2-City&license_key=${LICENSE_KEY}&suffix=tar.gz"
+          tar xvzf GeoLite2-City.tar.gz -C .
+          mv ./GeoLite2-City_*/GeoLite2-City.mmdb City.mmdb
+
+          curl -sSL -o GeoLite2-Country.tar.gz "https://download.maxmind.com/app/geoip_download?edition_id=GeoLite2-Country&license_key=${LICENSE_KEY}&suffix=tar.gz"
+          tar xvzf GeoLite2-Country.tar.gz -C .
+          mv ./GeoLite2-Country_*/GeoLite2-Country.mmdb Country.mmdb
+
+      - name: Generate SHA256SUM Files
+        id: new
+        run: |
+          sha256sum ASN.mmdb | tee ASN.mmdb.sha256
+          echo ::set-output name=ASN::$(cat ASN.mmdb.sha256 | cut -d' ' -f1)
+
+          sha256sum City.mmdb | tee City.mmdb.sha256
+          echo ::set-output name=City::$(cat City.mmdb.sha256 | cut -d' ' -f1)
+
+          sha256sum Country.mmdb | tee Country.mmdb.sha256
+          echo ::set-output name=Country::$(cat Country.mmdb.sha256 | cut -d' ' -f1)
+
+      - name: Get Latest SHA256SUM
+        id: old
+        run: |
+          curl -sSL "https://github.com/${GITHUB_REPOSITORY}/releases/latest/download/ASN.mmdb.sha256" | tee ASN.mmdb.sha256.old
+          curl -sSL "https://github.com/${GITHUB_REPOSITORY}/releases/latest/download/City.mmdb.sha256" | tee City.mmdb.sha256.old
+          curl -sSL "https://github.com/${GITHUB_REPOSITORY}/releases/latest/download/Country.mmdb.sha256" | tee Country.mmdb.sha256.old
+
+          echo ::set-output name=ASN::$(cat ASN.mmdb.sha256.old | cut -d' ' -f1)
+          echo ::set-output name=City::$(cat City.mmdb.sha256.old | cut -d' ' -f1)
+          echo ::set-output name=Country::$(cat Country.mmdb.sha256.old | cut -d' ' -f1)
+
+      - name: Push Tag
+        if: steps.old.outputs.ASN != steps.new.outputs.ASN || steps.old.outputs.City != steps.new.outputs.City || steps.old.outputs.Country != steps.new.outputs.Country
+        env:
+          TAG_NAME: ${{steps.date.outputs.tag}}
+        run: |
+          git config --global user.name  'xjasonlyu'
+          git config --global user.email 'xjasonlyu@users.noreply.github.com'
+          git remote set-url origin https://x-access-token:${{ secrets.GITHUB_TOKEN }}@github.com/${GITHUB_REPOSITORY}
+          git tag ${TAG_NAME}
+          git push origin ${TAG_NAME}
+
+      - name: Upload Release
+        if: steps.old.outputs.ASN != steps.new.outputs.ASN || steps.old.outputs.City != steps.new.outputs.City || steps.old.outputs.Country != steps.new.outputs.Country
+        uses: softprops/action-gh-release@v1
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        with:
+          files: |
+            ASN.mmdb
+            ASN.mmdb.sha256
+            City.mmdb
+            City.mmdb.sha256
+            Country.mmdb
+            Country.mmdb.sha256
+          tag_name: ${{steps.date.outputs.tag}}
