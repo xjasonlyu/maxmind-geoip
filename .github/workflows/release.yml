@@ -18,6 +18,9 @@ jobs:
         run: |
           echo ::set-output name=tag::$(date -u +%Y%m%d)
 
+      - name: Create dist Folder
+        run: mkdir -p dist
+
       - name: Download GeoIP Databases
         env:
           LICENSE_KEY: ${{ secrets.LICENSE_KEY }}
@@ -57,7 +60,7 @@ jobs:
           echo ::set-output name=City::$(cat City.mmdb.sha256.old | cut -d' ' -f1)
           echo ::set-output name=Country::$(cat Country.mmdb.sha256.old | cut -d' ' -f1)
 
-      - name: Push Tag
+      - name: Push Tag and Branch
         if: steps.old.outputs.ASN != steps.new.outputs.ASN || steps.old.outputs.City != steps.new.outputs.City || steps.old.outputs.Country != steps.new.outputs.Country
         env:
           TAG_NAME: ${{steps.date.outputs.tag}}
@@ -66,7 +69,14 @@ jobs:
           git config --global user.email 'xjasonlyu@users.noreply.github.com'
           git remote set-url origin https://x-access-token:${{ secrets.GITHUB_TOKEN }}@github.com/${GITHUB_REPOSITORY}
           git tag ${TAG_NAME}
-          git push origin ${TAG_NAME}
+          git push -f origin ${TAG_NAME}
+
+          git checkout --orphan release
+          git rm -rf .
+          git add *.mmdb
+          git add *.sha256
+          git commit -m "Update ${TAG_NAME}"
+          git push -f -u origin release
 
       - name: Upload Release
         if: steps.old.outputs.ASN != steps.new.outputs.ASN || steps.old.outputs.City != steps.new.outputs.City || steps.old.outputs.Country != steps.new.outputs.Country
@@ -75,10 +85,6 @@ jobs:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         with:
           files: |
-            ASN.mmdb
-            ASN.mmdb.sha256
-            City.mmdb
-            City.mmdb.sha256
-            Country.mmdb
-            Country.mmdb.sha256
+            *.mmdb
+            *.sha256
           tag_name: ${{steps.date.outputs.tag}}
