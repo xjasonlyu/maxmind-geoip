@@ -11,12 +11,12 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: Checkout Repo
-        uses: actions/checkout@v2
+        uses: actions/checkout@v3
 
       - name: Get Date as Tag
         id: date
         run: |
-          echo ::set-output name=tag::$(date -u +%Y%m%d)
+          echo "tag=$(date -u +%Y%m%d)" >> $GITHUB_OUTPUT
 
       - name: Create dist Folder
         run: mkdir -p dist
@@ -41,13 +41,13 @@ jobs:
         id: new
         run: |
           sha256sum ASN.mmdb | tee ASN.mmdb.sha256
-          echo ::set-output name=ASN::$(cat ASN.mmdb.sha256 | cut -d' ' -f1)
+          echo "ASN=$(cat ASN.mmdb.sha256 | cut -d' ' -f1)" >> $GITHUB_OUTPUT
 
           sha256sum City.mmdb | tee City.mmdb.sha256
-          echo ::set-output name=City::$(cat City.mmdb.sha256 | cut -d' ' -f1)
+          echo "City=$(cat City.mmdb.sha256 | cut -d' ' -f1)" >> $GITHUB_OUTPUT
 
           sha256sum Country.mmdb | tee Country.mmdb.sha256
-          echo ::set-output name=Country::$(cat Country.mmdb.sha256 | cut -d' ' -f1)
+          echo "Country=$(cat Country.mmdb.sha256 | cut -d' ' -f1)" >> $GITHUB_OUTPUT
 
       - name: Get Latest SHA256SUM
         id: old
@@ -56,9 +56,9 @@ jobs:
           curl -sSL "https://github.com/${GITHUB_REPOSITORY}/releases/latest/download/City.mmdb.sha256" | tee City.mmdb.sha256.old
           curl -sSL "https://github.com/${GITHUB_REPOSITORY}/releases/latest/download/Country.mmdb.sha256" | tee Country.mmdb.sha256.old
 
-          echo ::set-output name=ASN::$(cat ASN.mmdb.sha256.old | cut -d' ' -f1)
-          echo ::set-output name=City::$(cat City.mmdb.sha256.old | cut -d' ' -f1)
-          echo ::set-output name=Country::$(cat Country.mmdb.sha256.old | cut -d' ' -f1)
+          echo "ASN=$(cat ASN.mmdb.sha256.old | cut -d' ' -f1)" >> $GITHUB_OUTPUT
+          echo "City=$(cat City.mmdb.sha256.old | cut -d' ' -f1)" >> $GITHUB_OUTPUT
+          echo "Country=$(cat Country.mmdb.sha256.old | cut -d' ' -f1)" >> $GITHUB_OUTPUT
 
       - name: Push Tag and Branch
         if: steps.old.outputs.ASN != steps.new.outputs.ASN || steps.old.outputs.City != steps.new.outputs.City || steps.old.outputs.Country != steps.new.outputs.Country
